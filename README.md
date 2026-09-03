@@ -7,9 +7,67 @@ dashboard.
 
 ## Install
 
+### Nix profile
+
 ```sh
-nix profile install .
+nix profile install github:alexishachemi/godot-nvm
 ```
+
+### NixOS configuration with flakes
+
+Add `godot-nvm` as an input to your NixOS configuration flake and install its
+default package. Making its `nixpkgs` input follow the system input avoids
+evaluating and locking a second nixpkgs revision.
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    godot-nvm = {
+      url = "github:alexishachemi/godot-nvm";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { nixpkgs, godot-nvm, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            godot-nvm.packages.${pkgs.system}.default
+          ];
+
+          # Optional: enables `gnvm` and lets open+close exit the terminal shell.
+          programs.zsh.interactiveShellInit = ''
+            eval "$(${godot-nvm.packages.${pkgs.system}.default}/bin/godot-nvm shell-init zsh)"
+          '';
+        })
+      ];
+    };
+  };
+}
+```
+
+Replace `my-host` and the system architecture as appropriate, then rebuild:
+
+```sh
+sudo nixos-rebuild switch --flake .#my-host
+```
+
+To update the dashboard later, update its locked input and rebuild the system:
+
+```sh
+nix flake update godot-nvm
+sudo nixos-rebuild switch --flake .#my-host
+```
+
+For Bash, use `programs.bash.interactiveShellInit` and change the command's final
+argument from `zsh` to `bash`.
+
+### Shell integration
 
 Run the dashboard directly with `godot-nvm`. For the action that launches Godot
 and closes the invoking terminal shell, add this to your shell configuration:
